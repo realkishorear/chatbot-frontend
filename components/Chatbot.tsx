@@ -8,29 +8,30 @@ import { Send } from 'lucide-react'
 import { Message } from '@/lib/types'
 import MessageBubble from './MessegeBubble'
 
-const modeOptions = ['In Person', 'Video Call']
-
 export default function Chatbot() {
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
-    const [formStep, setFormStep] = useState<0 | 1 | 2 | 3 | 4 | 5 | null>(null)
+    const [formStep, setFormStep] = useState<0 | 1 | 2 | 3 | 4 | any>(null)
     const [isTyping, setIsTyping] = useState(false)
 
-    const [branchOptions, setBranchOptions] = useState<string[]>([])
-    const [treatmentOptions, setTreatmentOptions] = useState<string[]>([])
-    const [doctorOptions, setDoctorOptions] = useState<string[]>([])
-    const [availableTimes, setAvailableTimes] = useState<string[]>([])
+    const [branchOptions, setBranchOptions] = useState<any[]>([])
+    const [treatmentOptions, setTreatmentOptions] = useState<any[]>([])
+    const [doctorOptions, setDoctorOptions] = useState<any[]>([])
+    const [availableTimes, setAvailableTimes] = useState<{ date: string; time: string } | null>(null)
 
-    const [formData, setFormData] = useState<{
-        phoneNumber?: string
-        mode?: string
-        branch?: string
-        treatment?: string
-        doctor?: string
-        datetime?: string
-    }>({})
+    const [formData, setFormData] = useState({
+        branch_id: '',
+        treatment_id: '',
+        doctor_id: '',
+        datetime: '',
+        name: '',
+        gender: '',
+        phoneNumber: '',
+        modeOfVisit: '', // ✅ NEW FIELD
+    })
 
     const messagesEndRef = useRef<HTMLDivElement | null>(null)
+    const inputRef = useRef<HTMLInputElement | null>(null)
 
     const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
@@ -38,69 +39,15 @@ export default function Chatbot() {
         setMessages(prev => [...prev, { role: 'bot', type: 'text', content, timestamp: now() }])
     }
 
+    const sendBotMessageWithDelay = async (content: string, delay = 1500) => {
+        setIsTyping(true)
+        await new Promise(res => setTimeout(res, delay))
+        sendBotMessage(content)
+        setIsTyping(false)
+    }
+
     const sendUserMessage = (content: string) => {
         setMessages(prev => [...prev, { role: 'user', type: 'text', content, timestamp: now() }])
-    }
-
-    const completion_response = async (prompt: string) => {
-        try {
-            setIsTyping(true)
-            const response = await fetch("http://127.0.0.1:8000/chat", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt })
-            })
-
-            if (!response.ok) throw new Error("Failed to fetch queries!")
-            const data = await response.json()
-            return data
-        } catch (error) {
-            console.log("Error responding to the text : ", error)
-            sendBotMessage("⚠️ Could not load response. Please try again later.")
-            return null
-        } finally {
-            setTimeout(() => setIsTyping(false), 1000)
-        }
-    }
-
-    const fetchBranches = async () => {
-        try {
-            const res = await fetch('http://127.0.0.1:8000/branches')
-            const data = await res.json()
-            setBranchOptions(data)
-        } catch {
-            sendBotMessage('⚠️ Failed to load branches.')
-        }
-    }
-
-    const fetchTreatments = async (branch: string) => {
-        try {
-            const res = await fetch(`http://127.0.0.1:8000/treatments?branch=${branch}`)
-            const data = await res.json()
-            setTreatmentOptions(data)
-        } catch {
-            sendBotMessage('⚠️ Failed to load treatments.')
-        }
-    }
-
-    const fetchDoctors = async (treatment: string) => {
-        try {
-            const res = await fetch(`http://127.0.0.1:8000/doctors?treatment=${treatment}`)
-            const data = await res.json()
-            setDoctorOptions(data)
-        } catch {
-            sendBotMessage('⚠️ Failed to load doctors.')
-        }
-    }
-
-    const fetchAvailableTimes = async (doctor: string) => {
-        try {
-            const res = await fetch(`http://127.0.0.1:8000/availability?doctor=${doctor}`)
-            const data = await res.json()
-            setAvailableTimes(data)
-        } catch {
-            sendBotMessage('⚠️ Failed to load available time slots.')
-        }
     }
 
     const handleSend = async () => {
@@ -108,23 +55,157 @@ export default function Chatbot() {
         const value = input.trim()
         sendUserMessage(value)
         setInput('')
-        const assistant_response = await completion_response(value)
+        setIsTyping(true)
 
-        if (assistant_response?.book_appointment) {
-            setFormStep(0)
-            sendBotMessage("📞 Please enter your phone number:")
-        } else {
-            sendBotMessage(`${assistant_response?.response || '🤖 No response.'}`)
+        try {
+            const res = await fetch("http://127.0.0.1:8000/chat", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: value })
+            })
+
+            const data = await res.json()
+
+            if (data.book_appointment) {
+                setFormStep(0)
+                await fetchBranches()
+            } else {
+                await sendBotMessageWithDelay(data.response || "🤖 No response.")
+            }
+        } catch {
+            await sendBotMessageWithDelay("⚠️ Could not load response.")
+        } finally {
+            setIsTyping(false)
+            inputRef.current?.focus()
         }
     }
+
+    const fetchBranches = async () => {
+        try {
+            const res = await fetch('http://127.0.0.1:8000/branches/1', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    'ApplicationType': 0,
+                    'HospitalID': 1
+                })
+            })
+            const data = await res.json()
+            setBranchOptions(data.branch)
+            await sendBotMessageWithDelay("🏢 Please select a branch:")
+        } catch {
+            await sendBotMessageWithDelay("⚠️ Failed to load branches.")
+        }
+    }
+
+    const fetchTreatments = async (branch_id: string) => {
+        try {
+            const data = {
+                treatment: [
+                    { id: "1", treatment_name: "General Checkup" },
+                    { id: "2", treatment_name: "Dental Cleaning" }
+                ]
+            }
+            setTreatmentOptions(data.treatment)
+            await sendBotMessageWithDelay("💊 Please select a treatment:")
+        } catch {
+            await sendBotMessageWithDelay("⚠️ Failed to load treatments.")
+        }
+    }
+
+    const fetchDoctors = async (branch_id: string, treatment_id: string) => {
+        try {
+            const data = {
+                doctors: [
+                    { id: "1", doctor_name: "Dr. Smith" },
+                    { id: "2", doctor_name: "Dr. Johnson" }
+                ]
+            }
+            setDoctorOptions(data.doctors)
+            await sendBotMessageWithDelay("👨‍⚕️ Please select a doctor:")
+        } catch {
+            await sendBotMessageWithDelay("⚠️ Failed to load doctors.")
+        }
+    }
+
+    const fetchAvailableTimes = async (branch_id: string, treatment_id: string, doctor_id: string) => {
+        try {
+            const data = { date: "2025-05-15", time: "10:00" }
+            setAvailableTimes(data)
+            await sendBotMessageWithDelay("📅 Please confirm your date & time.")
+        } catch {
+            await sendBotMessageWithDelay("⚠️ Failed to load available times.")
+        }
+    }
+
+    const submitFinalForm = async () => {
+        try {
+            await fetch('http://127.0.0.1:8000/confirm-appointment/1', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            })
+            await sendBotMessageWithDelay("✅ Your appointment is confirmed! Thank you.")
+        } catch {
+            await sendBotMessageWithDelay("⚠️ Could not complete appointment booking.")
+        }
+    }
+
+    useEffect(() => {
+        sendBotMessageWithDelay("Hey, this is Ria. How may I help you?", 1500)
+        inputRef.current?.focus()
+    }, [])
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages, isTyping])
 
+    const renderSelectStep = (
+        label: string,
+        options: any[],
+        valueKey: string,
+        labelKey: string,
+        field: keyof typeof formData,
+        nextStep: number | null,
+        onNext?: () => void
+    ) => (
+        <div className="flex flex-col gap-2">
+            <select
+                className="border p-2 rounded"
+                value={formData[field]}
+                onChange={(e) =>
+                    setFormData(prev => ({ ...prev, [field]: e.target.value }))
+                }
+            >
+                <option value="" disabled>{label}</option>
+                {options.map(opt => (
+                    <option key={opt[valueKey]} value={opt[valueKey]}>
+                        {opt[labelKey] || opt[valueKey]}
+                    </option>
+                ))}
+            </select>
+            <Button
+                onClick={async () => {
+                    const val = formData[field]
+                    if (!val) return
+
+                    const selectedOption = options.find(o => o[valueKey] == val)
+                    const selectedLabel = selectedOption?.[labelKey] || selectedOption?.[valueKey] || val
+
+                    sendUserMessage(selectedLabel)
+
+                    if (onNext) await onNext()
+                    setFormStep(nextStep)
+                }}
+            >
+                Submit
+            </Button>
+        </div>
+    )
+
     return (
-        <div className="w-full min-h-screen flex items-center justify-center p-4 bg-gray-100">
-            <div className="w-full max-w-lg h-full sm:h-[90vh] flex flex-col rounded-2xl shadow-xl bg-white overflow-hidden">
+        <div className="w-screen h-screen bg-gray-100 flex items-center justify-center p-2">
+            <div className="w-full max-w-md h-full sm:h-[90vh] flex flex-col bg-white rounded-2xl shadow-md overflow-hidden">
                 <div className="flex-1 overflow-y-auto p-4">
                     <ScrollArea className="h-full pr-2">
                         <div className="space-y-2">
@@ -140,185 +221,116 @@ export default function Chatbot() {
                         </div>
                     </ScrollArea>
                 </div>
-
                 <div className="border-t p-4 bg-white">
-                    {formStep === 0 ? (
-                        <form
-                            onSubmit={(e) => {
-                                e.preventDefault()
-                                const phone = formData.phoneNumber || ''
-                                const valid = /^\+?\d{10,15}$/.test(phone)
-                                if (!valid) return sendBotMessage("⚠️ Enter a valid phone number.")
-                                sendUserMessage(phone)
-                                setFormStep(1)
-                                sendBotMessage("💻 Choose your mode of visit:")
-                            }}
-                            className="flex flex-col gap-2"
-                        >
+                    {formStep === 0 && renderSelectStep(
+                        "Select branch", branchOptions, "id", "branch_name", "branch_id", 1,
+                        () => fetchTreatments(formData.branch_id)
+                    )}
+
+                    {formStep === 1 && renderSelectStep(
+                        "Select treatment", treatmentOptions, "id", "treatment_name", "treatment_id", 2,
+                        () => fetchDoctors(formData.branch_id, formData.treatment_id)
+                    )}
+
+                    {formStep === 2 && renderSelectStep(
+                        "Select doctor", doctorOptions, "id", "doctor_name", "doctor_id", 3,
+                        () => fetchAvailableTimes(formData.branch_id, formData.treatment_id, formData.doctor_id)
+                    )}
+
+                    {formStep === 3 && availableTimes && (
+                        <div className="flex flex-col gap-2">
                             <Input
-                                type="tel"
-                                value={formData.phoneNumber || ''}
-                                onChange={(e) =>
-                                    setFormData(prev => ({ ...prev, phoneNumber: e.target.value }))
-                                }
-                                placeholder="Enter your phone number"
-                            />
-                            <Button type="submit" className="w-full">Submit</Button>
-                        </form>
-                    ) : formStep === 1 ? (
-                        <div className="flex flex-col gap-2">
-                            <select
-                                className="border p-2 rounded"
-                                onChange={(e) => setFormData(prev => ({ ...prev, mode: e.target.value }))}
-                                defaultValue=""
-                            >
-                                <option value="" disabled>Select mode of visit</option>
-                                {modeOptions.map(mode => (
-                                    <option key={mode} value={mode}>{mode}</option>
-                                ))}
-                            </select>
-                            <Button
-                                onClick={() => {
-                                    if (!formData.mode) return
-                                    sendUserMessage(formData.mode)
-                                    fetchBranches()
-                                    setFormStep(2)
-                                    sendBotMessage("🏢 Please select a branch:")
-                                }}
-                                className="w-full"
-                            >
-                                Submit
-                            </Button>
-                        </div>
-                    ) : formStep === 2 ? (
-                        <div className="flex flex-col gap-2">
-                            <select
-                                className="border p-2 rounded"
-                                onChange={(e) =>
-                                    setFormData(prev => ({ ...prev, branch: e.target.value }))
-                                }
-                                defaultValue=""
-                            >
-                                <option value="" disabled>Select branch</option>
-                                {branchOptions.map(branch => (
-                                    <option key={branch} value={branch}>{branch}</option>
-                                ))}
-                            </select>
-                            <Button
-                                onClick={() => {
-                                    if (!formData.branch) return
-                                    sendUserMessage(formData.branch)
-                                    fetchTreatments(formData.branch)
-                                    setFormStep(3)
-                                    sendBotMessage("💊 Please select a treatment:")
-                                }}
-                                className="w-full"
-                            >
-                                Submit
-                            </Button>
-                        </div>
-                    ) : formStep === 3 ? (
-                        <div className="flex flex-col gap-2">
-                            <select
-                                className="border p-2 rounded"
-                                onChange={(e) =>
-                                    setFormData(prev => ({ ...prev, treatment: e.target.value }))
-                                }
-                                defaultValue=""
-                            >
-                                <option value="" disabled>Select treatment</option>
-                                {treatmentOptions.map(t => (
-                                    <option key={t} value={t}>{t}</option>
-                                ))}
-                            </select>
-                            <Button
-                                onClick={() => {
-                                    if (!formData.treatment) return
-                                    sendUserMessage(formData.treatment)
-                                    fetchDoctors(formData.treatment)
-                                    setFormStep(4)
-                                    sendBotMessage("👨‍⚕️ Please select a doctor:")
-                                }}
-                                className="w-full"
-                            >
-                                Submit
-                            </Button>
-                        </div>
-                    ) : formStep === 4 ? (
-                        <div className="flex flex-col gap-2">
-                            <select
-                                className="border p-2 rounded"
-                                onChange={(e) =>
-                                    setFormData(prev => ({ ...prev, doctor: e.target.value }))
-                                }
-                                defaultValue=""
-                            >
-                                <option value="" disabled>Select doctor</option>
-                                {doctorOptions.map(doc => (
-                                    <option key={doc} value={doc}>{doc}</option>
-                                ))}
-                            </select>
-                            <Button
-                                onClick={() => {
-                                    if (!formData.doctor) return
-                                    sendUserMessage(formData.doctor)
-                                    fetchAvailableTimes(formData.doctor)
-                                    setFormStep(5)
-                                    sendBotMessage("📅 Please select a date & time:")
-                                }}
-                                className="w-full"
-                            >
-                                Submit
-                            </Button>
-                        </div>
-                    ) : formStep === 5 ? (
-                        <div className="flex flex-col gap-2">
-                            <select
-                                className="border p-2 rounded"
-                                onChange={(e) =>
+                                type="datetime-local"
+                                value={formData.datetime}
+                                min={`${availableTimes.date}T${availableTimes.time}`}
+                                onChange={e =>
                                     setFormData(prev => ({ ...prev, datetime: e.target.value }))
                                 }
-                                defaultValue=""
-                            >
-                                <option value="" disabled>Select date & time</option>
-                                {availableTimes.map(time => (
-                                    <option key={time} value={time}>{time}</option>
-                                ))}
-                            </select>
+                            />
                             <Button
                                 onClick={() => {
                                     if (!formData.datetime) return
                                     sendUserMessage(formData.datetime)
-                                    sendBotMessage(
-                                        `✅ Booking confirmed!\n\n` +
-                                        `📞 Phone: ${formData.phoneNumber}\n` +
-                                        `💻 Mode: ${formData.mode}\n` +
-                                        `🏢 Branch: ${formData.branch}\n` +
-                                        `💊 Treatment: ${formData.treatment}\n` +
-                                        `👨‍⚕️ Doctor: ${formData.doctor}\n` +
-                                        `📅 Time: ${formData.datetime}`
-                                    )
-                                    setFormData({})
-                                    setFormStep(null)
+                                    setFormStep(4)
+                                    sendBotMessage("🙋 Please enter your name, gender, phone number, and mode of visit:")
                                 }}
-                                className="w-full"
                             >
-                                Confirm
+                                Submit
                             </Button>
                         </div>
-                    ) : (
+                    )}
+
+                    {formStep === 4 && (
+                        <form
+                            onSubmit={async (e) => {
+                                e.preventDefault()
+                                const { name, gender, phoneNumber, modeOfVisit } = formData
+                                const validPhone = /^\+?\d{10,15}$/.test(phoneNumber)
+
+                                if (!name || !gender || !validPhone || !modeOfVisit) {
+                                    await sendBotMessageWithDelay("⚠️ Please provide valid name, gender, phone number, and mode of visit.")
+                                    return
+                                }
+
+                                sendUserMessage(`Name: ${name}, Gender: ${gender}, Phone: ${phoneNumber}, Mode: ${modeOfVisit}`)
+                                setFormStep(null)
+                                await submitFinalForm()
+                            }}
+                            className="flex flex-col gap-2"
+                        >
+                            <Input
+                                placeholder="Full Name"
+                                value={formData.name}
+                                onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                required
+                            />
+                            <select
+                                className="border p-2 rounded"
+                                value={formData.gender}
+                                onChange={e => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                                required
+                            >
+                                <option value="" disabled>Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <Input
+                                type="tel"
+                                placeholder="Phone Number"
+                                value={formData.phoneNumber}
+                                onChange={e => setFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                                required
+                            />
+                            <select
+                                className="border p-2 rounded"
+                                value={formData.modeOfVisit}
+                                onChange={e => setFormData(prev => ({ ...prev, modeOfVisit: e.target.value }))}
+                                required
+                            >
+                                <option value="" disabled>Select Mode of Visit</option>
+                                <option value="In-Person">In-Person</option>
+                                <option value="Online">Online</option>
+                            </select>
+                            <Button type="submit">Submit</Button>
+                        </form>
+                    )}
+
+                    {formStep == null && (
                         <div className="flex items-center gap-2 flex-wrap">
                             <Input
+                                ref={inputRef}
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => {
+                                onKeyDown={async (e) => {
                                     if (e.key === 'Enter') {
                                         e.preventDefault()
-                                        handleSend()
+                                        await handleSend()
                                     }
                                 }}
                                 className="flex-1"
                                 placeholder="Type your message"
+                                autoComplete="off"
                             />
                             <Button
                                 onClick={handleSend}
