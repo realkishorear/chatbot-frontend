@@ -23,7 +23,7 @@
 
   // Create iframe
   const iframe = document.createElement('iframe');
-  iframe.src = 'http://192.168.159.96:3000/chatbot-widget'; // Update this
+  iframe.src = 'http://192.168.132.96:3001/chatbot-widget'; // Update this to your actual chatbot URL
   Object.assign(iframe.style, {
     position: 'fixed',
     bottom: '80px',
@@ -38,9 +38,10 @@
     boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
     display: 'none',
     transition: 'all 0.3s ease-in-out',
+    pointerEvents: 'none', // Initially disable pointer events
   });
 
-  // Mobile styles
+  // Update responsive styles
   const updateResponsiveStyles = () => {
     const isMobile = window.innerWidth < 600;
     if (isMobile) {
@@ -48,7 +49,7 @@
       iframe.style.height = '100vh';
       iframe.style.bottom = '0';
       iframe.style.right = '0';
-      iframe.style.borderRadius = '0';
+      iframe.style.borderRadius = '12px';
     } else {
       iframe.style.width = '400px';
       iframe.style.height = '600px';
@@ -64,8 +65,19 @@
   // Toggle behavior
   button.onclick = () => {
     const isVisible = iframe.style.display === 'block';
-    iframe.style.display = isVisible ? 'none' : 'block';
+    if (isVisible) {
+      iframe.style.display = 'none';
+      iframe.style.pointerEvents = 'none';
+      document.body.style.overflow = ''; // Restore scroll
+    } else {
+      iframe.style.display = 'block';
+      iframe.style.pointerEvents = 'auto';
+      document.body.style.overflow = 'hidden'; // Disable background scroll
+    }
   };
+
+  const org_id = window.__org_id;
+  iframe.src = `http://192.168.228.96:3000/chatbot-widget?org_id=${encodeURIComponent(org_id)}`
 
   // Append to DOM
   document.body.appendChild(button);
