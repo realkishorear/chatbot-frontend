@@ -77,7 +77,7 @@
   };
 
   const org_id = window.__org_id;
-  iframe.src = `http://192.168.228.96:3000/chatbot-widget?org_id=${encodeURIComponent(org_id)}`
+  iframe.src = `http://localhost:3000/chatbot-widget?org_id=${encodeURIComponent(org_id)}`
 
   // Append to DOM
   document.body.appendChild(button);

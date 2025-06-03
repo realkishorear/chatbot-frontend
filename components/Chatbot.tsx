@@ -34,6 +34,13 @@ export default function Chatbot() {
         setSessionId(sessionId)
     }, [])
 
+    const increaseLimit = () => {
+        const rawValue = localStorage.getItem('count');
+        const currentCount = parseInt(rawValue || '0', 10);
+        const newCount = currentCount + 1
+        localStorage.setItem('count', newCount.toString())
+    }
+
 
     useEffect(() => {
         const rawValue = localStorage.getItem('count');
@@ -44,9 +51,6 @@ export default function Chatbot() {
             sendBotMessage("You seem more interested in our hospital. For more details contact our customer care.");
             return
         }
-    
-        const newCount = currentCount + 1;
-        localStorage.setItem('count', newCount.toString());
     
         if (mainInputRef.current !== null) {
             mainInputRef.current.focus();
@@ -131,7 +135,7 @@ export default function Chatbot() {
             console.log("Fetching branches...")
             setLoadingBranches(true)
             setIsTyping(true)
-            const res = await fetch(`http://localhost:8000/branches/${organizationId}`, {
+            const res = await fetch(`http://localhost:8000/api/branches/${organizationId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -286,13 +290,13 @@ export default function Chatbot() {
         setIsTyping(true)
 
         try {
-            const res = await fetch('http://192.168.228.96:8000/api/chat', {
+            const res = await fetch('http://localhost:8000/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     prompt: value,
                     session_id : SessionId,
-                    organization_id : organizationId
+                    org_id : '101'
                 }),
             })
 
@@ -312,6 +316,7 @@ export default function Chatbot() {
         } finally {
             setIsTyping(false)
             inputRef.current?.focus()
+            increaseLimit()
         }
     }
 

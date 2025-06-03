@@ -18,14 +18,14 @@ export default function Home() {
 
     const [loading, setloading] = useState(false)
 
-    // useEffect(() =>{
-    //     const organization_id : any = localStorage.getItem('org_id')
-    //     if(!organization_id || organization_id == ''){
-    //         router.replace('/auth')
-    //         return
-    //     }
-    //     setFormData(prev => ({...prev, org_id : organization_id}))
-    // }, [])
+    useEffect(() =>{
+        const organization_id : any = localStorage.getItem('org_id')
+        if(!organization_id || organization_id == ''){
+            router.replace('/auth')
+            return
+        }
+        setFormData(prev => ({...prev, org_id : organization_id}))
+    }, [])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -100,7 +100,7 @@ export default function Home() {
                             <label className="md:text-sm text-gray-600">Instructions</label>
                             <Textarea
                                 placeholder="Enter your instructions"
-                                className="h-24 resize-none md:text-md"
+                                className="h-48 resize-none md:text-md"
                                 value={FormData.content}
                                 onChange={(e) =>
                                     setFormData(prev => ({ ...prev, content: e.target.value }))
